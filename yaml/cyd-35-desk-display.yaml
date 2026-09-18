@@ -1,0 +1,925 @@
+# =============================================================================
+# CYD 3.5" desk display — ESPHome LVGL
+# Board: ESP32-3248S035C / ESP32-035 (ST7796 + XPT2046, 480×320, rotated 90°)
+# Geen PSRAM — geen albumhoes.
+#
+# Deelbaar sjabloon. Geen secrets, geen persoonlijke entity_id's.
+# ESPHome 2026.4.0 of nieuwer, framework esp-idf.
+#
+# --- Setup ---
+# 1. Vul de substitutions hieronder in met jouw Home Assistant entities.
+# 2. Zet in secrets.yaml:
+#      wifi_ssid: "..."
+#      wifi_password: "..."
+#      cyd_35__encryption_key: "..."   # esphome encrypt
+#      cyd_35__ota_password: "..."
+# 3. Pas de fallback-AP wachtwoord aan (ap_password).
+# 4. Touch-kalibratie is voor dit bord; andere CYD-varianten wijken af.
+#
+# Tegels: Normaal / Uit / Helder / Dim (scenes) · Trap (lamp-toggle) · Muziek
+# Swipe links = muziekpagina, swipe rechts = terug.
+# =============================================================================
+
+substitutions:
+  device_name: cyd-35
+  friendly_name: "Desk Display"
+  room_name: "CAVE"
+  # Home Assistant entities — pas aan
+  media_player_id: media_player.spotify
+  scene_normal: scene.normal
+  scene_off: scene.off
+  scene_bright: scene.bright
+  scene_dim: scene.dim
+  light_stairs: light.stairs
+  ap_password: "changeme"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  min_version: 2026.4.0
+  name_add_mac_suffix: false
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret cyd_35__encryption_key
+  on_client_connected:
+    - logger.log: "Home Assistant verbonden"
+    - lvgl.label.update:
+        id: lbl_ha
+        text: "HA"
+  on_client_disconnected:
+    - lvgl.label.update:
+        id: lbl_ha
+        text: "—"
+
+ota:
+  - platform: esphome
+    password: !secret cyd_35__ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "CYD-35 Fallback"
+    password: ${ap_password}
+
+captive_portal:
+
+# ==================================================
+# Hardware (ongewijzigd)
+# ==================================================
+spi:
+  - id: tft
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin:
+      number: GPIO12
+      ignore_strapping_warning: true
+
+output:
+  - platform: ledc
+    pin: GPIO27
+    id: backlight_pwm
+  - platform: ledc
+    pin: GPIO4
+    id: output_red
+    inverted: true
+  - platform: ledc
+    pin: GPIO16
+    id: output_green
+    inverted: true
+  - platform: ledc
+    pin: GPIO17
+    id: output_blue
+    inverted: true
+
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Display Backlight"
+    id: backlight
+    restore_mode: ALWAYS_ON
+    initial_state:
+      state: true
+      brightness: 70%
+  - platform: rgb
+    name: "RGB LED"
+    id: rgb_led
+    red: output_red
+    green: output_blue
+    blue: output_green
+    restore_mode: ALWAYS_OFF
+    icon: "mdi:led-on"
+
+# ==================================================
+# Fonts
+# ==================================================
+font:
+  - file:
+      type: gfonts
+      family: Material+Symbols+Outlined
+      weight: 400
+    id: icons
+    size: 34
+    bpp: 4
+    glyphs:
+      - "\U0000e0f0"   # lightbulb
+      - "\U0000e8ac"   # power_settings_new
+      - "\U0000e430"   # wb_sunny
+      - "\U0000e51c"   # dark_mode
+      - "\U0000f1a9"   # stairs
+      - "\U0000e405"   # music_note
+      - "\U0000e045"   # skip_previous
+      - "\U0000e044"   # skip_next
+  - file:
+      type: gfonts
+      family: Material+Symbols+Outlined
+      weight: 400
+    id: icons_lg
+    size: 42
+    bpp: 4
+    glyphs:
+      - "\U0000e037"   # play_arrow
+      - "\U0000e034"   # pause
+  - file:
+      type: gfonts
+      family: Outfit
+      weight: 500
+    id: font_caption
+    size: 14
+    bpp: 4
+  - file:
+      type: gfonts
+      family: Outfit
+      weight: 600
+    id: font_clock
+    size: 21
+    bpp: 4
+  - file:
+      type: gfonts
+      family: Outfit
+      weight: 500
+    id: font_title
+    size: 18
+    bpp: 4
+  - file:
+      type: gfonts
+      family: Outfit
+      weight: 600
+    id: font_big
+    size: 22
+    bpp: 4
+
+# ==================================================
+# Display + Touch (ongewijzigd)
+# ==================================================
+display:
+  - platform: mipi_spi
+    id: main_display
+    model: ST7796
+    spi_id: tft
+    cs_pin:
+      number: GPIO15
+      ignore_strapping_warning: true
+    dc_pin:
+      number: GPIO2
+      ignore_strapping_warning: true
+    data_rate: 40MHz
+    color_order: BGR
+    invert_colors: false
+    dimensions:
+      width: 320
+      height: 480
+      offset_width: 0
+      offset_height: 0
+      pad_width: 0
+      pad_height: 0
+    update_interval: never
+
+touchscreen:
+  - platform: xpt2046
+    id: main_touch
+    spi_id: tft
+    cs_pin: GPIO33
+    interrupt_pin: GPIO36
+    threshold: 400
+    update_interval: 50ms
+    display: main_display
+    calibration:
+      x_min: 300
+      x_max: 3850
+      y_min: 250
+      y_max: 3850
+    transform:
+      swap_xy: false
+      mirror_x: true
+      mirror_y: true
+    on_release:
+      then:
+        - light.turn_on:
+            id: backlight
+            brightness: 70%
+            transition_length: 200ms
+
+# ==================================================
+# Tijd + state
+# ==================================================
+time:
+  - platform: homeassistant
+    id: ha_time
+    on_time_sync:
+      then:
+        - script.execute: update_clock
+    on_time:
+      - seconds: 0
+        minutes: /1
+        then:
+          - script.execute: update_clock
+
+globals:
+  - id: media_pos
+    type: float
+    restore_value: no
+    initial_value: "0"
+  - id: media_dur
+    type: float
+    restore_value: no
+    initial_value: "0"
+  - id: media_playing
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: drag_progress
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+script:
+  - id: update_clock
+    then:
+      - lvgl.label.update:
+          id: lbl_clock
+          text: !lambda |-
+            if (!id(ha_time).now().is_valid()) return std::string("--:--");
+            return id(ha_time).now().strftime("%H:%M");
+      - lvgl.label.update:
+          id: lbl_clock_spot
+          text: !lambda |-
+            if (!id(ha_time).now().is_valid()) return std::string("--:--");
+            return id(ha_time).now().strftime("%H:%M");
+  - id: mark_scene
+    parameters:
+      idx: int
+    then:
+      - lvgl.widget.update:
+          id: btn_normal
+          state:
+            checked: !lambda "return idx == 1;"
+      - lvgl.widget.update:
+          id: btn_off
+          state:
+            checked: !lambda "return idx == 2;"
+      - lvgl.widget.update:
+          id: btn_bright
+          state:
+            checked: !lambda "return idx == 3;"
+      - lvgl.widget.update:
+          id: btn_dim
+          state:
+            checked: !lambda "return idx == 4;"
+  - id: refresh_progress
+    then:
+      - if:
+          condition:
+            lambda: "return !id(drag_progress);"
+          then:
+            - lvgl.slider.update:
+                id: spotify_progress
+                value: !lambda |-
+                  if (id(media_dur) <= 0) return 0;
+                  int v = (int)((id(media_pos) / id(media_dur)) * 1000.0f);
+                  if (v < 0) return 0;
+                  if (v > 1000) return 1000;
+                  return v;
+            - lvgl.label.update:
+                id: lbl_time_pos
+                text: !lambda |-
+                  int t = (int)id(media_pos);
+                  if (t < 0) t = 0;
+                  char buf[8];
+                  snprintf(buf, sizeof(buf), "%d:%02d", t / 60, t % 60);
+                  return std::string(buf);
+            - lvgl.label.update:
+                id: lbl_time_dur
+                text: !lambda |-
+                  int t = (int)id(media_dur);
+                  if (t < 0) t = 0;
+                  char buf[8];
+                  snprintf(buf, sizeof(buf), "%d:%02d", t / 60, t % 60);
+                  return std::string(buf);
+
+# ==================================================
+# Home Assistant entities
+# ==================================================
+sensor:
+  - platform: homeassistant
+    id: spotify_position
+    entity_id: ${media_player_id}
+    attribute: media_position
+    internal: true
+    on_value:
+      then:
+        - lambda: "id(media_pos) = x;"
+        - script.execute: refresh_progress
+  - platform: homeassistant
+    id: spotify_duration
+    entity_id: ${media_player_id}
+    attribute: media_duration
+    internal: true
+    on_value:
+      then:
+        - lambda: "id(media_dur) = x;"
+        - script.execute: refresh_progress
+text_sensor:
+  - platform: homeassistant
+    id: spotify_state
+    entity_id: ${media_player_id}
+    internal: true
+    on_value:
+      then:
+        - lambda: |-
+            id(media_playing) = (id(spotify_state).state == "playing");
+        - if:
+            condition:
+              text_sensor.state:
+                id: spotify_state
+                state: "playing"
+            then:
+              - lvgl.label.update:
+                  id: play_pause_icon
+                  text: "\U0000e034"
+            else:
+              - lvgl.label.update:
+                  id: play_pause_icon
+                  text: "\U0000e037"
+  - platform: homeassistant
+    id: spotify_title
+    entity_id: ${media_player_id}
+    attribute: media_title
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_title
+            text: !lambda |-
+              return id(spotify_title).state.empty() ? "Geen titel" : id(spotify_title).state;
+  - platform: homeassistant
+    id: spotify_artist
+    entity_id: ${media_player_id}
+    attribute: media_artist
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_artist
+            text: !lambda |-
+              return id(spotify_artist).state.empty() ? "Geen artiest" : id(spotify_artist).state;
+  - platform: homeassistant
+    id: trap_state
+    entity_id: ${light_stairs}
+    internal: true
+    on_value:
+      then:
+        - lvgl.widget.update:
+            id: btn_trap
+            state:
+              checked: !lambda 'return id(trap_state).state == "on";'
+
+# ==================================================
+# LVGL
+# ==================================================
+lvgl:
+  displays:
+    - main_display
+  touchscreens:
+    - main_touch
+  buffer_size: 25%
+  rotation: 90
+  default_font: font_caption
+  on_idle:
+    - timeout: 90s
+      then:
+        - light.turn_on:
+            id: backlight
+            brightness: 40%
+            transition_length: 1.5s
+  style_definitions:
+    - id: style_page
+      bg_color: 0x0C0D10
+      bg_opa: COVER
+      border_width: 0
+      pad_all: 0
+    - id: style_card
+      bg_color: 0x16181D
+      bg_opa: COVER
+      border_width: 1
+      border_color: 0x2A2D34
+      radius: 14
+      shadow_width: 0
+      pad_all: 0
+    - id: style_icon_stack
+      bg_opa: TRANSP
+      border_width: 0
+      pad_all: 0
+    - id: style_ghost
+      bg_color: 0x16181D
+      bg_opa: COVER
+      border_width: 1
+      border_color: 0x2A2D34
+      radius: 10
+      shadow_width: 0
+  theme:
+    button:
+      bg_color: 0x16181D
+      bg_opa: COVER
+      border_width: 1
+      border_color: 0x2A2D34
+      radius: 14
+      shadow_width: 0
+      text_color: 0xEDEEEF
+      text_font: font_caption
+      pressed:
+        bg_color: 0x22252C
+      checked:
+        bg_color: 0x22252C
+        border_color: 0xD4D7DE
+    slider:
+      bg_color: 0x2A2D34
+      radius: 6
+      indicator:
+        bg_color: 0xEDEEEF
+        radius: 6
+      knob:
+        bg_color: 0xEDEEEF
+        radius: 8
+        pad_all: 2
+    label:
+      text_color: 0xEDEEEF
+      text_font: font_caption
+  pages:
+    # ---------- PAGINA 1: Scenes ----------
+    - id: page_scenes
+      styles: style_page
+      pad_all: 0
+      scrollable: false
+      on_swipe_left:
+        then:
+          - lambda: "lv_indev_wait_release(lv_indev_get_act());"
+          - lvgl.page.show:
+              id: page_spotify
+              animation: MOVE_LEFT
+              time: 220ms
+      layout:
+        type: FLEX
+        flex_flow: COLUMN
+        pad_row: 0
+      widgets:
+        - obj:
+            width: 100%
+            height: 44
+            pad_left: 16
+            pad_right: 16
+            pad_top: 8
+            bg_opa: TRANSP
+            border_width: 0
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_main: SPACE_BETWEEN
+              flex_align_cross: CENTER
+            widgets:
+              - label:
+                  id: lbl_clock
+                  text: "--:--"
+                  text_font: font_clock
+                  text_color: 0xEDEEEF
+              - label:
+                  text: "${room_name}"
+                  text_font: font_caption
+                  text_color: 0x8B8E96
+                  text_letter_space: 3
+              - label:
+                  id: lbl_ha
+                  text: "HA"
+                  text_font: font_caption
+                  text_color: 0x7D8A7C
+        - obj:
+            width: 100%
+            flex_grow: 1
+            pad_left: 12
+            pad_right: 12
+            pad_bottom: 12
+            pad_top: 8
+            bg_opa: TRANSP
+            border_width: 0
+            layout:
+              type: GRID
+              grid_columns: [FR(1), FR(1), FR(1)]
+              grid_rows: [FR(1), FR(1)]
+              pad_row: 10
+              pad_column: 10
+              grid_cell_x_align: STRETCH
+              grid_cell_y_align: STRETCH
+            widgets:
+              - button:
+                  id: btn_normal
+                  checkable: true
+                  styles: style_card
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 0
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_row: 6
+                  widgets:
+                    - label:
+                        text: "\U0000e0f0"
+                        text_font: icons
+                        text_color: 0xEDEEEF
+                    - label:
+                        text: "Normaal"
+                        text_font: font_caption
+                        text_color: 0x8B8E96
+                  on_click:
+                    then:
+                      - homeassistant.action:
+                          action: scene.turn_on
+                          data:
+                            entity_id: ${scene_normal}
+                      - script.execute:
+                          id: mark_scene
+                          idx: 1
+              - button:
+                  id: btn_off
+                  checkable: true
+                  styles: style_card
+                  grid_cell_column_pos: 1
+                  grid_cell_row_pos: 0
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_row: 6
+                  widgets:
+                    - label:
+                        text: "\U0000e8ac"
+                        text_font: icons
+                        text_color: 0xE25D54
+                    - label:
+                        text: "Uit"
+                        text_font: font_caption
+                        text_color: 0xE25D54
+                  on_click:
+                    then:
+                      - homeassistant.action:
+                          action: scene.turn_on
+                          data:
+                            entity_id: ${scene_off}
+                      - script.execute:
+                          id: mark_scene
+                          idx: 2
+              - button:
+                  id: btn_bright
+                  checkable: true
+                  styles: style_card
+                  grid_cell_column_pos: 2
+                  grid_cell_row_pos: 0
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_row: 6
+                  widgets:
+                    - label:
+                        text: "\U0000e430"
+                        text_font: icons
+                        text_color: 0xEDEEEF
+                    - label:
+                        text: "Helder"
+                        text_font: font_caption
+                        text_color: 0x8B8E96
+                  on_click:
+                    then:
+                      - homeassistant.action:
+                          action: scene.turn_on
+                          data:
+                            entity_id: ${scene_bright}
+                      - script.execute:
+                          id: mark_scene
+                          idx: 3
+              - button:
+                  id: btn_dim
+                  checkable: true
+                  styles: style_card
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 1
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_row: 6
+                  widgets:
+                    - label:
+                        text: "\U0000e51c"
+                        text_font: icons
+                        text_color: 0xEDEEEF
+                    - label:
+                        text: "Dim"
+                        text_font: font_caption
+                        text_color: 0x8B8E96
+                  on_click:
+                    then:
+                      - homeassistant.action:
+                          action: scene.turn_on
+                          data:
+                            entity_id: ${scene_dim}
+                      - script.execute:
+                          id: mark_scene
+                          idx: 4
+              - button:
+                  id: btn_trap
+                  checkable: true
+                  styles: style_card
+                  grid_cell_column_pos: 1
+                  grid_cell_row_pos: 1
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_row: 6
+                  widgets:
+                    - label:
+                        text: "\U0000f1a9"
+                        text_font: icons
+                        text_color: 0xEDEEEF
+                    - label:
+                        text: "Trap"
+                        text_font: font_caption
+                        text_color: 0x8B8E96
+                  on_click:
+                    then:
+                      - homeassistant.action:
+                          action: light.toggle
+                          data:
+                            entity_id: ${light_stairs}
+              - button:
+                  id: btn_music
+                  styles: style_card
+                  grid_cell_column_pos: 2
+                  grid_cell_row_pos: 1
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_row: 6
+                  widgets:
+                    - label:
+                        text: "\U0000e405"
+                        text_font: icons
+                        text_color: 0xEDEEEF
+                    - label:
+                        text: "Muziek"
+                        text_font: font_caption
+                        text_color: 0x8B8E96
+                  on_click:
+                    then:
+                      - lvgl.page.show:
+                          id: page_spotify
+                          animation: MOVE_LEFT
+                          time: 220ms
+
+    # ---------- PAGINA 2: Spotify ----------
+    - id: page_spotify
+      styles: style_page
+      pad_all: 0
+      scrollable: false
+      scrollbar_mode: "OFF"
+      on_swipe_right:
+        then:
+          - lambda: "lv_indev_wait_release(lv_indev_get_act());"
+          - lvgl.page.show:
+              id: page_scenes
+              animation: MOVE_RIGHT
+              time: 220ms
+      layout:
+        type: FLEX
+        flex_flow: COLUMN
+        pad_row: 0
+      widgets:
+        - obj:
+            width: 100%
+            height: 44
+            pad_left: 16
+            pad_right: 16
+            pad_top: 8
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_main: SPACE_BETWEEN
+              flex_align_cross: CENTER
+            widgets:
+              - label:
+                  text: "Nu spelend"
+                  text_font: font_caption
+                  text_color: 0x8B8E96
+                  text_letter_space: 1
+              - label:
+                  id: lbl_clock_spot
+                  text: "--:--"
+                  text_font: font_clock
+                  text_color: 0xEDEEEF
+        - obj:
+            width: 100%
+            flex_grow: 1
+            pad_left: 24
+            pad_right: 24
+            pad_top: 8
+            pad_bottom: 18
+            bg_opa: TRANSP
+            border_width: 0
+            scrollable: false
+            scrollbar_mode: "OFF"
+            layout:
+              type: FLEX
+              flex_flow: COLUMN
+              flex_align_main: SPACE_EVENLY
+              flex_align_cross: CENTER
+            widgets:
+              - label:
+                  id: lbl_artist
+                  width: 420
+                  text: "Artiest"
+                  text_font: font_title
+                  text_color: 0x8B8E96
+                  text_align: CENTER
+                  long_mode: DOT
+              - label:
+                  id: lbl_title
+                  width: 420
+                  text: "Titel"
+                  text_font: font_big
+                  text_color: 0xEDEEEF
+                  text_align: CENTER
+                  long_mode: DOT
+              - obj:
+                  width: 360
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    pad_row: 4
+                  widgets:
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_main: SPACE_BETWEEN
+                        widgets:
+                          - label:
+                              id: lbl_time_pos
+                              text: "0:00"
+                              text_font: font_caption
+                              text_color: 0x8B8E96
+                          - label:
+                              id: lbl_time_dur
+                              text: "0:00"
+                              text_font: font_caption
+                              text_color: 0x8B8E96
+                    - slider:
+                        id: spotify_progress
+                        width: 360
+                        height: 16
+                        min_value: 0
+                        max_value: 1000
+                        value: 0
+                        adv_hittest: true
+                        on_press:
+                          then:
+                            - lambda: "id(drag_progress) = true;"
+                        on_release:
+                          then:
+                            - homeassistant.action:
+                                action: media_player.media_seek
+                                data:
+                                  entity_id: ${media_player_id}
+                                  seek_position: !lambda |-
+                                    if (id(media_dur) <= 0) return 0.0f;
+                                    return (x / 1000.0f) * id(media_dur);
+                            - lambda: |-
+                                if (id(media_dur) > 0) {
+                                  id(media_pos) = (x / 1000.0f) * id(media_dur);
+                                }
+                                id(drag_progress) = false;
+                            - script.execute: refresh_progress
+              - obj:
+                  width: 100%
+                  height: SIZE_CONTENT
+                  bg_opa: TRANSP
+                  border_width: 0
+                  layout:
+                    type: FLEX
+                    flex_flow: ROW
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_column: 16
+                  widgets:
+                    - button:
+                        width: 52
+                        height: 52
+                        radius: 14
+                        styles: style_card
+                        widgets:
+                          - label:
+                              align: CENTER
+                              text: "\U0000e045"
+                              text_font: icons
+                              text_color: 0xEDEEEF
+                        on_click:
+                          then:
+                            - homeassistant.action:
+                                action: media_player.media_previous_track
+                                data:
+                                  entity_id: ${media_player_id}
+                    - button:
+                        id: play_pause_btn
+                        width: 64
+                        height: 64
+                        radius: 32
+                        bg_color: 0xEDEEEF
+                        border_width: 0
+                        shadow_width: 0
+                        pressed:
+                          bg_color: 0xC8CCD4
+                        widgets:
+                          - label:
+                              id: play_pause_icon
+                              align: CENTER
+                              text: "\U0000e037"
+                              text_font: icons_lg
+                              text_color: 0x0C0D10
+                        on_click:
+                          then:
+                            - homeassistant.action:
+                                action: media_player.media_play_pause
+                                data:
+                                  entity_id: ${media_player_id}
+                    - button:
+                        width: 52
+                        height: 52
+                        radius: 14
+                        styles: style_card
+                        widgets:
+                          - label:
+                              align: CENTER
+                              text: "\U0000e044"
+                              text_font: icons
+                              text_color: 0xEDEEEF
+                        on_click:
+                          then:
+                            - homeassistant.action:
+                                action: media_player.media_next_track
+                                data:
+                                  entity_id: ${media_player_id}
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          if (id(media_playing) && id(media_dur) > 0) {
+            float next = id(media_pos) + 1.0f;
+            id(media_pos) = next > id(media_dur) ? id(media_dur) : next;
+          }
+      - script.execute: refresh_progress
