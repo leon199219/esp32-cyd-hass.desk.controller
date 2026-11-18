@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img">
+  <title>ESP32 CYD desk controller: Home Assistant scenes and a media player on a Cheap Yellow Display</title>
+  <rect width="1280" height="400" fill="#0C1016"/>
+  <rect x="40" y="32" width="1200" height="336" rx="20" fill="#121821" stroke="#1E2836" stroke-width="1"/>
+  <!-- Device bezel -->
+  <rect x="328" y="54" width="624" height="268" rx="18" fill="#1A1C22" stroke="#2A2D34" stroke-width="1"/>
+  <!-- Screen -->
+  <rect x="344" y="66" width="592" height="244" rx="6" fill="#0C0D10"/>
+  <!-- Header -->
+  <text x="364" y="96" font-family="ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="22" font-weight="600" fill="#EDEEEF">12:00</text>
+  <text x="640" y="96" text-anchor="middle" font-family="ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="16" fill="#8B8E96">CAVE</text>
+  <text x="916" y="96" text-anchor="end" font-family="ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="16" fill="#7D8A7C">HA</text>
+  <!-- Tiles: 3 columns x 2 rows (Normaal, Uit, Helder / Dim, Trap, Muziek) -->
+  <g font-family="ui-sans-serif, system-ui, Helvetica, Arial, sans-serif">
+    <!-- Normaal -->
+    <rect x="360" y="114" width="180" height="86" rx="10" fill="#16181D" stroke="#2A2D34" stroke-width="1"/>
+    <circle cx="450" cy="142" r="8" fill="none" stroke="#EDEEEF" stroke-width="2"/>
+    <text x="450" y="180" text-anchor="middle" font-size="14" fill="#8B8E96">Normaal</text>
+    <!-- Uit -->
+    <rect x="550" y="114" width="180" height="86" rx="10" fill="#16181D" stroke="#2A2D34" stroke-width="1"/>
+    <line x1="640" y1="130" x2="640" y2="144" stroke="#E25D54" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M631 135 a11 11 0 1 0 18 0" fill="none" stroke="#E25D54" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="640" y="180" text-anchor="middle" font-size="14" fill="#E25D54">Uit</text>
+    <!-- Helder -->
+    <rect x="740" y="114" width="180" height="86" rx="10" fill="#16181D" stroke="#2A2D34" stroke-width="1"/>
+    <circle cx="830" cy="142" r="7" fill="none" stroke="#EDEEEF" stroke-width="2"/>
+    <path d="M830 126 v6 M830 152 v6 M814 142 h6 M840 142 h6 M818.7 130.7 l4.2 4.2 M837.1 149.1 l4.2 4.2 M818.7 153.3 l4.2-4.2 M837.1 134.9 l4.2-4.2" stroke="#EDEEEF" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <text x="830" y="180" text-anchor="middle" font-size="14" fill="#8B8E96">Helder</text>
+    <!-- Dim -->
+    <rect x="360" y="210" width="180" height="86" rx="10" fill="#16181D" stroke="#2A2D34" stroke-width="1"/>
+    <circle cx="450" cy="238" r="7" fill="none" stroke="#EDEEEF" stroke-width="2"/>
+    <path d="M450 224 v4 M450 248 v4 M436 238 h4 M460 238 h4" stroke="#EDEEEF" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <text x="450" y="276" text-anchor="middle" font-size="14" fill="#8B8E96">Dim</text>
+    <!-- Trap -->
+    <rect x="550" y="210" width="180" height="86" rx="10" fill="#16181D" stroke="#2A2D34" stroke-width="1"/>
+    <path d="M628 250 h16 v-8 h16 v-8 h16" fill="none" stroke="#EDEEEF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="640" y="276" text-anchor="middle" font-size="14" fill="#8B8E96">Trap</text>
+    <!-- Muziek -->
+    <rect x="740" y="210" width="180" height="86" rx="10" fill="#16181D" stroke="#2A2D34" stroke-width="1"/>
+    <path d="M822 230 v20 a7 7 0 1 0 3-5.5 V236 l16-4 v16 a7 7 0 1 0 3-5.5 V226 z" fill="#EDEEEF"/>
+    <text x="830" y="276" text-anchor="middle" font-size="14" fill="#8B8E96">Muziek</text>
+  </g>
+  <text x="640" y="346" text-anchor="middle" font-family="ui-sans-serif, system-ui, Helvetica, Arial, sans-serif" font-size="18" fill="#9AA4B2">ESPHome LVGL desk controller for a Cheap Yellow Display</text>
+</svg>
